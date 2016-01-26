@@ -1,7 +1,8 @@
 package helipilot50.orientdb.recommendation.rest;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +19,7 @@ import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 
 import helipilot50.orientdb.recommendation.Constants;
 import helipilot50.orientdb.recommendation.FineFoodsService;
+import helipilot50.orientdb.recommendation.Recommendation;
 
 
 @Controller
@@ -26,8 +28,8 @@ public class RESTController {
 
 	@Autowired
 	OrientGraphFactory  graphFactory;
-	
-	
+
+
 
 	/**
 	 * get a recommendation for a specific user
@@ -37,7 +39,7 @@ public class RESTController {
 	 */
 	@SuppressWarnings("unchecked")
 	@RequestMapping(value="/finefoods/recommendation/{userId}", method=RequestMethod.GET)
-	public @ResponseBody List<String> getAerospikeRecommendationFor(@PathVariable("userId") String userId) throws Exception {
+	public @ResponseBody Recommendation getAerospikeRecommendationFor(@PathVariable("userId") String userId) throws Exception {
 		log.debug("Finding recomendations for " + userId);
 		OrientGraphNoTx graph = graphFactory.getNoTx();
 		FineFoodsService service = new FineFoodsService(graph);
@@ -50,6 +52,7 @@ public class RESTController {
 		 */
 		List<Double> thisUserReviewVector = service.makeVectorForUser(vUser);
 
+		Recommendation rec = new Recommendation(userId, productListAsString(service.productsForUser(vUser)));
 
 		Vertex bestMatchedUser = null;
 		List<Vertex> bestMatchedList = null;
@@ -59,49 +62,33 @@ public class RESTController {
 		 * through the other User that also reviewed
 		 * the food 
 		 */
-		List<Vertex> thisUserProducts = service.productsForUser(vUser);
-		for (Vertex product : thisUserProducts){
-			List<Vertex> otherUsers = service.usersForProduct(product);
-			for (Vertex similarUser : otherUsers){
-				if (!similarUser.equals(userId)) {
-					// find user with the highest similarity
+		List<Vertex> otherUsers = service.similarUsers(vUser);
+		for (Vertex similarUser : otherUsers){
+			if (!similarUser.equals(userId)) {
+				// find user with the highest similarity
 
-					List<Double> similarUserVector = service.makeVectorForUser(similarUser);
-					
-					double score = easySimilarity(thisUserReviewVector, similarUserVector);
-					
-					if (score > bestScore){
-						
-						bestScore = score;
-						bestMatchedUser = similarUser;
-						bestMatchedList = service.productsForUser(similarUser);
-					}
+				List<Double> similarUserVector = service.makeVectorForUser(similarUser);
+
+				double score = easySimilarity(thisUserReviewVector, similarUserVector);
+
+				if (score > bestScore){
+
+					bestScore = score;
+					bestMatchedUser = similarUser;
+					bestMatchedList = service.productsForUser(similarUser);
 				}
 			}
-
 		}
 		log.debug("Best customer: " + bestMatchedUser);
 		log.debug("Best score: " + bestScore);
 		// return the best matched user's purchases as the recommendation
-		List<String> recommendedProducts = new ArrayList<String>();
-		for (Vertex vProduct : bestMatchedList){
-			String proID = vProduct.getId().toString();
-			if (!service.vectorContains(vProduct, thisUserReviewVector)){
-				String productID = vProduct.getProperty(Constants.PRODUCT_ID);
-				recommendedProducts.add(productID);
-			}
-		}
+		Set<String> recommendedProducts = productListAsString(bestMatchedList);
 
-		// This is a diagnostic step
-		if (log.isDebugEnabled()){
-			log.debug("Recomended products:");
-			for (String prodString : recommendedProducts){
-				log.debug(prodString);
-			}
-		}
 
 		log.debug("Found these recomendations: " + recommendedProducts);
-		return recommendedProducts;
+		
+		rec.setRecommendedProducts(recommendedProducts);
+		return rec;
 	}
 
 
@@ -124,4 +111,11 @@ public class RESTController {
 		return CosineSimilarity.cosineSimilarity(thisUserVector, similarUserVector);
 	}
 
+	private Set<String> productListAsString(List<Vertex> productList){
+		Set<String> theList = new HashSet<String>();
+		for (Vertex prod : productList){
+			theList.add((String) prod.getProperty(Constants.PRODUCT_ID));
+		}
+		return theList;
+	}
 }

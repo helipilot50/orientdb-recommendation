@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -100,7 +101,7 @@ public class FineFoodsService {
 		}
 		return vProduct;
 	}
-	
+
 	public Edge createReview(Vertex vUser, Vertex vProduct, Map<String, Object> review){
 		Edge toProduct = graph.addEdge(null, vUser, vProduct, Constants.EDGE_REVIEWED);
 		for (Map.Entry<String, Object> entry : review.entrySet()) {
@@ -110,23 +111,37 @@ public class FineFoodsService {
 		}
 		return toProduct;
 	}
-	
+
 	public List<Vertex> productsForUser(Vertex vUser){
 		List<Vertex> products = new ArrayList<Vertex>();
 		Iterable<Edge> reviewEdges = vUser.getEdges(Direction.OUT, Constants.EDGE_REVIEWED);
 		for (Edge review : reviewEdges){
-			Vertex vProduct = review.getVertex(Direction.OUT);
+			Vertex vProduct = review.getVertex(Direction.IN);
 			products.add(vProduct);
 		}
 		return products;
 	}
 	public List<Vertex> usersForProduct(Vertex vProduct){
 		List<Vertex> users = new ArrayList<Vertex>();
-		Iterable<Edge> reviewEdges = vProduct.getEdges(Direction.OUT, Constants.EDGE_REVIEWED);
+		Iterable<Edge> reviewEdges = vProduct.getEdges(Direction.IN, Constants.EDGE_REVIEWED);
 		for (Edge review : reviewEdges){
 			Vertex vUser = review.getVertex(Direction.OUT);
 			users.add(vUser);
 		}
 		return users;
 	}
+
+	public List<Vertex> similarUsers(Vertex vUser){
+		
+		List<Vertex> users = new ArrayList<Vertex>();
+		List<Vertex> products = productsForUser(vUser);
+		for (Vertex product : products){
+			List<Vertex> similarUsers = usersForProduct(product);
+			for (Vertex  user : similarUsers){
+				users.add(user);
+			}
+		}
+		return users;
+	}
+	
 }

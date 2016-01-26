@@ -6,9 +6,8 @@ Author: Peter Milne
 
 This example uses the **Spring Boot** application environment, a powerful jump-start into the versatile Spring Java based web application framework. With Spring Boot you can build powerful applications with production grade services with little effort - and easily launch and enjoy the enclosed example. This example can be translated into other frameworks.
 
-The **OrientDB** is a hybrid Graph and document database you can use as the storage. 
 
-**OrientDB** is a .
+**OrientDB** is a Distributed Graph Database engine with the flexibility of a Document Database all in one product. (see [OrientDB](http://orientdb.com/))
 
 
 ##What you will build
@@ -20,14 +19,32 @@ You could try this with any database, in this exercise we will the OrientDB Grap
 
 You will build a service that accepts an HTTP GET request:
 ```
-	http://localhost:8080/finefoods/recommendation/{profileName}
+http://localhost:8080/finefoods/recommendation/{userId}
+```
+for example
+```
+http://localhost:8080/finefoods/recommendation/A2A9X58G2GTBLP
 ```
 
 It responds with the following JSON array of recommendations:
 ```json
-Some stuff here
+{
+	"userId": "A2A9X58G2GTBLP",
+	"reviewedProducts": [
+		"B000HB9TLI",
+		"B001GVISJM",
+		"B001FA1DYG",
+		"B0002PHDAS"
+	],
+	"recommendedProducts": [
+		"B001FA1G6G",
+	]
+}
 
 ```
+It should look like this
+![screen shot](screenshot.png]
+
 
 If you’d like to just jump into trying out the code, skip forward to the “Setup the project” section.
 
@@ -37,13 +54,13 @@ There are also many features added to your application out-of-the-box for managi
 
 This is a non-contextual behavioral recommendation engine. There are three categories of objects: Users and Reviews. 
 
-In our provided example, customers watch and rate movies. Based on their reviews, other customers determine whether they are interested in watching particular movies. Although our example uses this exact data set, it should be clear how to adapt this code to other data models.
+In our provided example, users review products. Based on their reviews, other users determine whether they are interested in buying a product. Although our example uses this exact data set, it should be clear how to adapt this code to other data models.
 
-A users’s profile will have a history of their reviews; and a Review will have a history of  who have rated it.
+A users’s profile will have a history of their reviews; and a product will have a history of who has rated it.
 
-A simple recommendation task is to find another customer who is similar to the target customer and recommend products that the other customer has enjoyed. It is a good idea to eliminate the duplicates so that the target user is only recommended movies that they have not seen.
+A simple recommendation task is to find another user who is similar to the target user and recommend products that the other user has enjoyed. It is a good idea to eliminate the duplicates so that the target user is only recommended products that they have not reviewed.
 
-The data we are using in this exercise is a simulated data set which lists Movies watched by Customers, similar to data any media site like NetFlix, Hulu, or Tivo would use. In this simulation, there are only about 25 movies in the data set. The data is deliberately sparse to reduce the size, consequently data integrity is not guaranteed. There will be many more users and ratings than movies, and some movies have no ratings at all.
+The data we are using in this exercise is a simulated data set which lists Movies watched by users, similar to data any media site like NetFlix, Hulu, or Tivo would use. In this simulation, there are only about 25 movies in the data set. The data is deliberately sparse to reduce the size, consequently data integrity is not guaranteed. There will be many more users and ratings than movies, and some movies have no ratings at all.
 
 ##Schema
 Aerospike has a flexible NoSQL data model. A Set can be used to group records, like a relational database table, but no restrictions are applied to the records in a set.  
@@ -53,24 +70,24 @@ The data is this example is stored in two Aerospike Sets:
 - MOVIE_CUSTOMERS
 
 ###Ratings
-A rating is a sub-record that stores map of values. It is stored in a Large List. The Large List is stored in a Bin in both the Customer record and the Movie record. The values in the map are:
+A rating is a sub-record that stores map of values. It is stored in a Large List. The Large List is stored in a Bin in both the user record and the Movie record. The values in the map are:
 
-customer-id | movie-id | rating | date
+user-id | movie-id | rating | date
 ------------|----------|--------|-----
 String | String | Integer | String
 
 ###Movies
-The Movie record consists of some details about the movie e.g. Title and Year of release, but more importantly a list of who has watched it, the users rating and when it was rated. This list is important in determining who is the most similar customer.
+The Movie record consists of some details about the movie e.g. Title and Year of release, but more importantly a list of who has watched it, the users rating and when it was rated. This list is important in determining who is the most similar user.
 
 
 Move ID (primary key) | YearOfRelease | Title | WATCHED_BY | Rating
 ----------------------|---------------|-------|------------|-------
 String | String | String | Large Stack of Ratings (Aerospike), List (MongoDB) | Integer
 
-###Customers
-The Customer record has a customer ID and a List of movies watched and rated. It could contain additional attributes about the customer, but for this example it simply contains a list of ratings.
+###users
+The user record has a user ID and a List of movies watched and rated. It could contain additional attributes about the user, but for this example it simply contains a list of ratings.
 
-Customer ID (primary key) | MOVIES_WATCHED
+user ID (primary key) | MOVIES_WATCHED
 --------------------------|---------------
 String | Large Stack of Ratings (Aerospike), List (MongoDB)
 
@@ -106,7 +123,7 @@ Similarity can be found using several algorithms, there are many academic papers
 5. Using the user profile with the highest similarity score, recommend the movies in this user profile that Jane has not seen.
 
 This is a **very elementary** technique and it is useful only as an illustration, and it does have several flaws. Here are a few:
- - Imagine that Jane has watched Harry Potter. It would be foolish to calculate similarity using the customer profiles who viewed this movie, because a very large number of people watched Harry Potter. If we generalize this idea, it would be that movies with the number of views over a certain threshold should be excluded.
+ - Imagine that Jane has watched Harry Potter. It would be foolish to calculate similarity using the user profiles who viewed this movie, because a very large number of people watched Harry Potter. If we generalize this idea, it would be that movies with the number of views over a certain threshold should be excluded.
  - Cosine similarity assumes each element in the vector has the same weight. The elements in our vectors are the movie IDs, but we also have the rating of the movie also. A better similarity algorithm would include both the movie ID and its rating.
 
 ##What you will need
@@ -211,11 +228,11 @@ public @ResponseBody JSONArray getAerospikeRecommendationFor(@PathVariable("cust
 
 This method processes a REST request and responds with a JSON object that contains recommended movies.
 
-The customer ID supplied in the REST request is used as the key to retrieve the customer record.
+The user ID supplied in the REST request is used as the key to retrieve the user record.
 ```java
 thisUser = client.get(policy, new Key(NAME_SPACE, USERS_SET, customerID));
 ```
-Once we have the customer record, we get a list of movies that they have watched. This list is limited by the constant `MOVIE_REVIEW_LIMIT`. 
+Once we have the user record, we get a list of movies that they have watched. This list is limited by the constant `MOVIE_REVIEW_LIMIT`. 
 ```java
 /*
  * get the latest movies watched and rated by the customer
@@ -235,13 +252,13 @@ List<Map<String, Object>> customerWatchedList =
 		(List<Map<String, Object>>) customerWatched.range(low, high);
 
 ```
-Then we make a vector from the list of movies watched.
+Then we make a vector from the list of products rated and their ratings.
 ```java
 List<Long> thisCustomerMovieVector = makeVector(customerWatchedList);
 ```
 This vector is simply a list of long integers. We will use this vector in our similarity comparisons.
 
-We then iterate through the movies that the customer has watched, and build a list of customers that have watched these movies, and find the most similar customer using Cosine Similarity:
+We then iterate through the movies that the customer has watched, and build a list of customers that have watched these products, and find the most similar customer using Cosine Similarity:
 ```java
 /*
  * for each movie this customer watched, iterate
@@ -291,7 +308,7 @@ for (Map<String, Object> wr : customerWatchedList){
 log.debug("Best customer: " + bestMatchedCustomer);
 log.debug("Best score: " + bestScore);
 ```
-Having completed iterating through the list of similar customers you will have the customer with the highest similarity score. We then get the movies that this customer has watched 
+Having completed iterating through the list of similar customers you will have the customer with the highest similarity score. We then get the products that this customer has watched 
 ```java
 // get the movies
 Key[] recomendedMovieKeys = new Key[bestMatchedPurchases.size()];
@@ -326,7 +343,7 @@ public @ResponseBody BasicDBList getMongoRecommendationFor(@PathVariable("custom
 . . .
 }
 ```
-This method processes a REST request and responds with a JSON object that contains recommended movies.
+This method processes a REST request and responds with a JSON object that contains recommended products.
 
 The customer ID supplied in the REST request is used as the key to retrieve the customer record.
 ```java

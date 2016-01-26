@@ -86,11 +86,12 @@ Property | type
 productId | String 
 
 ###users
-The user record has a user ID and a List of movies watched and rated. It could contain additional attributes about the user, but for this example it simply contains a list of ratings.
+The user `Vertex` has a user ID and a profile name.
 
-user ID (primary key) | MOVIES_WATCHED
---------------------------|---------------
-String | Large Stack of Ratings (Aerospike), List (MongoDB)
+Property | type
+---------|-----
+userId | String
+profileName | String
 
 
 ##How do you find similarity?

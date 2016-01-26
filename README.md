@@ -63,26 +63,30 @@ A simple recommendation task is to find another user who is similar to the targe
 The data we are using in this exercise is a simulated data set which lists Movies watched by users, similar to data any media site like NetFlix, Hulu, or Tivo would use. In this simulation, there are only about 25 movies in the data set. The data is deliberately sparse to reduce the size, consequently data integrity is not guaranteed. There will be many more users and ratings than movies, and some movies have no ratings at all.
 
 ##Schema
-Aerospike has a flexible NoSQL data model. A Set can be used to group records, like a relational database table, but no restrictions are applied to the records in a set.  
-
-The data is this example is stored in two Aerospike Sets: 
-- MOVIE_TITLES
-- MOVIE_CUSTOMERS
-
-###Ratings
-A rating is a sub-record that stores map of values. It is stored in a Large List. The Large List is stored in a Bin in both the user record and the Movie record. The values in the map are:
-
-user-id | movie-id | rating | date
-------------|----------|--------|-----
-String | String | Integer | String
-
-###Movies
-The Movie record consists of some details about the movie e.g. Title and Year of release, but more importantly a list of who has watched it, the users rating and when it was rated. This list is important in determining who is the most similar user.
+OrientDB has a flexible NoSQL data model. You can choose to have a Schema, to be Schemaless or a mixture.  
 
 
-Move ID (primary key) | YearOfRelease | Title | WATCHED_BY | Rating
-----------------------|---------------|-------|------------|-------
-String | String | String | Large Stack of Ratings (Aerospike), List (MongoDB) | Integer
+###Review
+A Review is an `Edge` that connects a User to a Product. It has a number of properties supplied by the person who revieded the product. The values in the map are:
+
+Property | type 
+---------|-----
+productId | String
+userId | String
+profileName | String
+helpfulness | String
+score | Double
+time | Integer
+summary | String
+text | String
+
+###Products
+The Product is a `Vertex` with a single property
+
+
+Property | type
+---------|-----
+productId | String 
 
 ###users
 The user record has a user ID and a List of movies watched and rated. It could contain additional attributes about the user, but for this example it simply contains a list of ratings.

@@ -50,7 +50,6 @@ public class FineFoodsService {
 		} else {
 			throw new UserNotFound(userId);
 		}
-
 		return vUser;
 	}
 

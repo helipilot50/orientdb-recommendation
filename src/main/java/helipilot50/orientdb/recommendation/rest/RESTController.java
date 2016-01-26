@@ -39,7 +39,7 @@ public class RESTController {
 	 */
 	@SuppressWarnings("unchecked")
 	@RequestMapping(value="/finefoods/recommendation/{userId}", method=RequestMethod.GET)
-	public @ResponseBody Recommendation getAerospikeRecommendationFor(@PathVariable("userId") String userId) throws Exception {
+	public @ResponseBody Recommendation getRecommendationFor(@PathVariable("userId") String userId) throws Exception {
 		log.debug("Finding recomendations for " + userId);
 		OrientGraphNoTx graph = graphFactory.getNoTx();
 		FineFoodsService service = new FineFoodsService(graph);

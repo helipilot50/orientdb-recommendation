@@ -43,7 +43,7 @@ It responds with the following JSON array of recommendations:
 
 ```
 It should look like this
-![screen shot](screenshot.png]
+![screen shot](screenshot.png)
 
 
 If you’d like to just jump into trying out the code, skip forward to the “Setup the project” section.

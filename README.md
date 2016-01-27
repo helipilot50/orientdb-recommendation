@@ -2,16 +2,16 @@
 
 Author: Peter Milne
 
-**Recommendation engines** are used in applications to personalize the user experience. For example, e-commerce applications recommend products to a customer that other customers -  with similar behavior - have viewed, enjoyed, or purchased. News applications would use a real-time recommendation engine, as stories come and go quickly. These application additions improve the user experience, increase sales and help retain customer loyalty. This guide contains example code for a real-time, non-contextual, cosine-similarity based engine. 
+**Recommendation engines** are used in applications to personalize the user experience. For example, e-commerce applications recommend products to a customer that other customers -  with similar behavior - have viewed, enjoyed, or purchased. News applications would use a real-time recommendation engine, as stories come and go quickly. These application additions improve the user experience, increase sales and help retain customer loyalty. This guide contains example code for a real-time, non-contextual, cosine-similarity based engine. This example uses **OrientDB** and **Spring Boot**.
 
-This example uses the **Spring Boot** application environment, a powerful jump-start into the versatile Spring Java based web application framework. With Spring Boot you can build powerful applications with production grade services with little effort - and easily launch and enjoy the enclosed example. This example can be translated into other frameworks.
+**Spring Boot** application environment is a powerful jump-start into the versatile Spring Java based web application framework. With Spring Boot you can build powerful applications with production grade services with little effort - and easily launch and enjoy the enclosed example. This example can be translated into other frameworks.
 
 
 **OrientDB** is a Distributed Graph Database engine with the flexibility of a Document Database all in one product. (see [OrientDB](http://orientdb.com/))
 
 
 ##What you will build
-This guide will take you through accessing the Github repository containing the project, and creating a simple recommendation service. The provided engine will use Similarity Vectors to recommend a product - in the case of the example data set, movies - to a customer. The algorithm for this is very elementary, and will provide a starting point for real-time recommendation research, but also will provide recommendations based on the demonstration data provided.
+This guide will take you through accessing the Github repository containing the project, and creating a simple recommendation service. The provided engine will use Similarity Vectors to recommend a product - in the case of the example data food Products - to a User. The algorithm for this is very elementary, and will provide a starting point for real-time recommendation research, but also will provide recommendations based on the demonstration data provided.
 
 To provide a recommendation in real-time, you will need a database that can retrieve your data very quickly, as several database requests will be necessary to do the full recommendation. If your database is too slow, you will find - even over reasonable data sets - that the recommendation time is slow. 
 
@@ -49,7 +49,7 @@ There are also many features added to your application out-of-the-box for managi
 
 ##Recommendation Algorithm
 
-This is a non-contextual behavioral recommendation engine. There are three categories of objects: Users and Reviews. 
+This is a non-contextual behavioral recommendation engine. There are three categories of objects: Users, Reviews and Products. 
 
 In our provided example, users review products. Based on their reviews, other users determine whether they are interested in buying a product. Although our example uses this exact data set, it should be clear how to adapt this code to other data models.
 
@@ -57,14 +57,19 @@ A users’s profile will have a history of their reviews; and a product will hav
 
 A simple recommendation task is to find another user who is similar to the target user and recommend products that the other user has enjoyed. It is a good idea to eliminate the duplicates so that the target user is only recommended products that they have not reviewed.
 
-The data we are using in this exercise is a simulated data set which lists Movies watched by users, similar to data any media site like NetFlix, Hulu, or Tivo would use. In this simulation, there are only about 25 movies in the data set. The data is deliberately sparse to reduce the size, consequently data integrity is not guaranteed. There will be many more users and ratings than movies, and some movies have no ratings at all.
+This dataset consists of reviews of fine foods from amazon. The data span a period of more than 10 years, including all ~500,000 reviews up to October 2012. Reviews include product and user information, ratings, and a plaintext review.
+
+The data set is available at [Fine Foods](https://snap.stanford.edu/data/finefoods.txt.gz)
+
 
 ##Schema
-OrientDB has a flexible NoSQL data model. You can choose to have a Schema, to be Schemaless or a mixture.  
+OrientDB has a flexible NoSQL data model. You can choose to have a Schema, to be Schema-less or a mixture.   In this example we have "almost no" schema as it is controlled by program code rather than DDL.
+
+![FoodGraph](FoodGraph.jpg)
 
 
 ###Review
-A Review is an `Edge` that connects a User to a Product. It has a number of properties supplied by the person who revieded the product. The values in the map are:
+A Review is an `Edge` that connects a User to a Product. It has a number of properties supplied by the person who reviewed the product. The properties are:
 
 Property | type 
 ---------|-----
@@ -85,7 +90,7 @@ Property | type
 ---------|-----
 productId | String 
 
-###users
+###Users
 The user `Vertex` has a user ID and a profile name.
 
 Property | type
@@ -144,10 +149,10 @@ The Maven pom.xml will package the service into a single jar. Use the command:
 ```bash
 mvn clean package
 ```
-Maven will download all the dependencies (Spring Boot, Commons CLI, Log4j, Simple JSON) and install them in your local Maven repository. Then it will build and package the application as a stand-alone runnable jar with a web service application including an instance of Tomcat, so you can simply run the jar without installing it in an Application Server.
+Maven will download all the dependencies (Spring Boot, Commons CLI, OrientDB driver) and install them in your local Maven repository. Then it will build and package the application as a stand-alone runnable jar with a web service application including an instance of Tomcat, so you can simply run the jar without installing it in an Application Server.
 
 ###Step 4: Load Data
-A data uploader, included in the JAR that will upload \Product reviews to OrientDB. The test data is included in the directory `data`. Each file contains 50,000 Reviews. To load the data, run the JAR with the following options:
+A data uploader, included in the JAR that will upload Product reviews to OrientDB. The test data is included in the directory `data`. Each file contains 50,000 Reviews. To load the data, run the JAR with the following options:
 ```bash
 java -cp helipilot50-orientdb-recommendation-0.0.1-SNAPSHOT.jar helipilot50.orientdb.recommendation.dataimport.DataLoad
 ```
@@ -169,7 +174,7 @@ The result should be like this:
 
 ![Result](screenshot.png)
 
-Note: I'm using Crome as my browser with an Extension that formats JSON documents nicely. You can find it [here](https://github.com/callumlocke/json-formatter)
+Note: I'm using Crome as my browser with an Extension that formats JSON documents nicely. You can find the Extention [here](https://github.com/callumlocke/json-formatter)
 
 ##Code discussion
 
@@ -210,9 +215,42 @@ List<Double> thisUserReviewVector = service.makeVectorForUser(vUser);
 Recommendation rec = new Recommendation(userId, productListAsString(service.productsForUser(vUser)));
 
 ```
-This vector is simply a list of Doubles. We will use this vector in our similarity comparisons.
+This vector is simply a list of Doubles. We will use this vector in our similarity comparisons. This the code that makes the Vector:
+```java
+public List<Double> makeVectorForUser(Vertex vUser){
+	List<Double> reviewVector = new ArrayList<Double>();
+	Iterable<Edge> reviewEdges = vUser.getEdges(Direction.OUT, Constants.EDGE_REVIEWED);
+	for (Edge review : reviewEdges){
+		Vertex vProduct = review.getVertex(Direction.OUT);
+		String productVertexPostfix = vProduct.getId().toString();
+		productVertexPostfix = productVertexPostfix.substring(productVertexPostfix.lastIndexOf(':')+1);
+		reviewVector.add(Double.parseDouble(productVertexPostfix));
+		Double score = review.getProperty("score");
+		reviewVector.add(score);
+	}
+	return reviewVector;
+}
 
-We then iterate through the Reviews that the User has made and corresponding Products, and build a list of Users that have reviewed these products, then find the most similar customer using Cosine Similarity:
+```
+To make the Vector, we iterate through the Reviews (`Edge`) that the User has made and corresponding Products (`Vertex`), and build a list of Double value from Product `Vertex` Id and a Double value from the Review score, as a pair. The resulting Vector will look something like this:
+
+|1st Id | 1st score | 2nd Id | 2nd score | 3rd Id | 3rd score | ... |last Id | last score |
+----------|---------|---------|---------|---|---|---|---|------
+345.0| 4.3 | 4279 | 3.0 | 10723.0 | 5.0| ... | 1287.0 | 2.1
+
+We also make a list of Strings of reviewed products to display to the user using this code:
+```java
+private Set<String> productListAsString(List<Vertex> productList){
+	Set<String> theList = new HashSet<String>();
+	for (Vertex prod : productList){
+		theList.add((String) prod.getProperty(Constants.PRODUCT_ID));
+	}
+	return theList;
+}
+
+```
+
+We find the Users that have reviewed these products, then find the most similar customer using Cosine Similarity:
 ```java
 /*
  * for each Review from this User, iterate
